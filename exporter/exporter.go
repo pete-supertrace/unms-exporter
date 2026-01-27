@@ -160,7 +160,15 @@ func (e *Exporter) collectImpl(ctx context.Context, out chan<- prom.Metric) erro
 		return err
 	}
 
+	seenDevices := make(map[string]struct{})
 	for _, device := range devices {
+		if device.Identification == nil || device.Identification.ID == nil {
+			continue
+		}
+		_, deviceSeen := seenDevices[*device.Identification.ID]
+		if !deviceSeen {
+			seenDevices[*device.Identification.ID] = struct{}{}
+		}
 		siteID := "no-site-id"
 		siteName := "no-site"
 		if s := device.Identification.Site; s != nil {
@@ -181,18 +189,20 @@ func (e *Exporter) collectImpl(ctx context.Context, out chan<- prom.Metric) erro
 			siteName,
 		}
 
-		out <- e.newMetric("device_enabled", prom.GaugeValue, boolToGauge(derefOrFalse(device.Enabled)), deviceLabels...)
-		if device.Meta != nil {
-			out <- e.newMetric("device_maintenance", prom.GaugeValue, boolToGauge(derefOrFalse(device.Meta.Maintenance)), deviceLabels...)
-		}
-		if device.Overview != nil {
-			out <- e.newMetric("device_cpu", prom.GaugeValue, device.Overview.CPU, deviceLabels...)
-			out <- e.newMetric("device_ram", prom.GaugeValue, device.Overview.RAM, deviceLabels...)
-			out <- e.newMetric("device_uptime", prom.GaugeValue, device.Overview.Uptime, deviceLabels...)
-			out <- e.newMetric("device_last_seen", prom.CounterValue, timeToGauge(device.Overview.LastSeen), deviceLabels...)
-		}
-		if device.LatestBackup != nil && device.LatestBackup.Timestamp != nil {
-			out <- e.newMetric("device_last_backup", prom.GaugeValue, timeToGauge(*device.LatestBackup.Timestamp), deviceLabels...)
+		if !deviceSeen {
+			out <- e.newMetric("device_enabled", prom.GaugeValue, boolToGauge(derefOrFalse(device.Enabled)), deviceLabels...)
+			if device.Meta != nil {
+				out <- e.newMetric("device_maintenance", prom.GaugeValue, boolToGauge(derefOrFalse(device.Meta.Maintenance)), deviceLabels...)
+			}
+			if device.Overview != nil {
+				out <- e.newMetric("device_cpu", prom.GaugeValue, device.Overview.CPU, deviceLabels...)
+				out <- e.newMetric("device_ram", prom.GaugeValue, device.Overview.RAM, deviceLabels...)
+				out <- e.newMetric("device_uptime", prom.GaugeValue, device.Overview.Uptime, deviceLabels...)
+				out <- e.newMetric("device_last_seen", prom.CounterValue, timeToGauge(device.Overview.LastSeen), deviceLabels...)
+			}
+			if device.LatestBackup != nil && device.LatestBackup.Timestamp != nil {
+				out <- e.newMetric("device_last_backup", prom.GaugeValue, timeToGauge(*device.LatestBackup.Timestamp), deviceLabels...)
+			}
 		}
 
 		seenInterfaces := make(map[string]struct{})

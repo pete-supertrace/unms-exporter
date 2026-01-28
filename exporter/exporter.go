@@ -179,7 +179,6 @@ func (e *Exporter) collectImpl(ctx context.Context, out chan<- prom.Metric) erro
 				siteName = s.Name
 			}
 		}
-
 		deviceLabels := []string{
 			*device.Identification.ID,  // deviceId
 			device.Identification.Name, // deviceName
@@ -203,74 +202,74 @@ func (e *Exporter) collectImpl(ctx context.Context, out chan<- prom.Metric) erro
 			if device.LatestBackup != nil && device.LatestBackup.Timestamp != nil {
 				out <- e.newMetric("device_last_backup", prom.GaugeValue, timeToGauge(*device.LatestBackup.Timestamp), deviceLabels...)
 			}
-		}
 
-		seenInterfaces := make(map[string]struct{})
+			seenInterfaces := make(map[string]struct{})
 
-		var wanIF *models.DeviceInterfaceSchema
-		for _, intf := range device.Interfaces {
-			if intf.Identification == nil {
-				continue
-			}
-
-			// sometimes UNMS duplicates an interface in the list.
-			// skip it so we don't send duplicate metrics.
-			if _, ok := seenInterfaces[intf.Identification.Name]; ok {
-				continue
-			}
-			seenInterfaces[intf.Identification.Name] = struct{}{}
-
-			if intf.Identification.Name == device.Identification.WanInterfaceID {
-				wanIF = intf
-			}
-
-			intfLabels := make([]string, 0, len(deviceLabels)+len(interfaceLabels))
-			intfLabels = append(intfLabels, deviceLabels...)
-			intfLabels = append(intfLabels,
-				intf.Identification.Name,                            // ifName
-				derefOrEmpty(intf.Identification.Description),       // ifDescr
-				strconv.FormatInt(intf.Identification.Position, 10), // ifPos
-				intf.Identification.Type,                            // ifType
-			)
-
-			out <- e.newMetric("interface_enabled", prom.GaugeValue, boolToGauge(intf.Enabled), intfLabels...)
-			if intf.Status != nil {
-				out <- e.newMetric("interface_plugged", prom.GaugeValue, boolToGauge(intf.Status.Plugged), intfLabels...)
-				out <- e.newMetric("interface_up", prom.GaugeValue, boolToGauge(intf.Status.Status == "active"), intfLabels...)
-			}
-
-			if intf.Statistics != nil {
-				out <- e.newMetric("interface_dropped", prom.CounterValue, intf.Statistics.Dropped, intfLabels...)
-				out <- e.newMetric("interface_errors", prom.CounterValue, intf.Statistics.Errors, intfLabels...)
-				out <- e.newMetric("interface_rx_bytes", prom.CounterValue, intf.Statistics.Rxbytes, intfLabels...)
-				out <- e.newMetric("interface_tx_bytes", prom.CounterValue, intf.Statistics.Txbytes, intfLabels...)
-				out <- e.newMetric("interface_rx_rate", prom.GaugeValue, intf.Statistics.Rxrate, intfLabels...)
-				out <- e.newMetric("interface_tx_rate", prom.GaugeValue, intf.Statistics.Txrate, intfLabels...)
-				out <- e.newMetric("interface_poe_power", prom.GaugeValue, intf.Statistics.PoePower, intfLabels...)
-			}
-		}
-
-		// WAN metrics
-		if wanIF != nil && wanIF.Statistics != nil {
-			out <- e.newMetric("wan_rx_bytes", prom.CounterValue, wanIF.Statistics.Rxbytes, deviceLabels...)
-			out <- e.newMetric("wan_tx_bytes", prom.CounterValue, wanIF.Statistics.Txbytes, deviceLabels...)
-			out <- e.newMetric("wan_rx_rate", prom.GaugeValue, wanIF.Statistics.Rxrate, deviceLabels...)
-			out <- e.newMetric("wan_tx_rate", prom.GaugeValue, wanIF.Statistics.Txrate, deviceLabels...)
-		}
-
-		// Ping metrics, if enabled
-		if e.extras.Ping {
-			ratio := 1.0
-			if ping := device.PingMetrics(); ping != nil {
-				if ping.PacketsSent > 0 {
-					ratio = float64(ping.PacketsLost) / float64(ping.PacketsSent)
+			var wanIF *models.DeviceInterfaceSchema
+			for _, intf := range device.Interfaces {
+				if intf.Identification == nil {
+					continue
 				}
-				out <- e.newMetric("ping_rtt_best_seconds", prom.GaugeValue, ping.Best.Seconds(), deviceLabels...)
-				out <- e.newMetric("ping_rtt_mean_seconds", prom.GaugeValue, ping.Mean.Seconds(), deviceLabels...)
-				out <- e.newMetric("ping_rtt_worst_seconds", prom.GaugeValue, ping.Worst.Seconds(), deviceLabels...)
-				out <- e.newMetric("ping_rtt_std_deviation_seconds", prom.GaugeValue, ping.StdDev.Seconds(), deviceLabels...)
+
+				// sometimes UNMS duplicates an interface in the list.
+				// skip it so we don't send duplicate metrics.
+				if _, ok := seenInterfaces[intf.Identification.Name]; ok {
+					continue
+				}
+				seenInterfaces[intf.Identification.Name] = struct{}{}
+
+				if intf.Identification.Name == device.Identification.WanInterfaceID {
+					wanIF = intf
+				}
+
+				intfLabels := make([]string, 0, len(deviceLabels)+len(interfaceLabels))
+				intfLabels = append(intfLabels, deviceLabels...)
+				intfLabels = append(intfLabels,
+					intf.Identification.Name,                            // ifName
+					derefOrEmpty(intf.Identification.Description),       // ifDescr
+					strconv.FormatInt(intf.Identification.Position, 10), // ifPos
+					intf.Identification.Type,                            // ifType
+				)
+
+				out <- e.newMetric("interface_enabled", prom.GaugeValue, boolToGauge(intf.Enabled), intfLabels...)
+				if intf.Status != nil {
+					out <- e.newMetric("interface_plugged", prom.GaugeValue, boolToGauge(intf.Status.Plugged), intfLabels...)
+					out <- e.newMetric("interface_up", prom.GaugeValue, boolToGauge(intf.Status.Status == "active"), intfLabels...)
+				}
+
+				if intf.Statistics != nil {
+					out <- e.newMetric("interface_dropped", prom.CounterValue, intf.Statistics.Dropped, intfLabels...)
+					out <- e.newMetric("interface_errors", prom.CounterValue, intf.Statistics.Errors, intfLabels...)
+					out <- e.newMetric("interface_rx_bytes", prom.CounterValue, intf.Statistics.Rxbytes, intfLabels...)
+					out <- e.newMetric("interface_tx_bytes", prom.CounterValue, intf.Statistics.Txbytes, intfLabels...)
+					out <- e.newMetric("interface_rx_rate", prom.GaugeValue, intf.Statistics.Rxrate, intfLabels...)
+					out <- e.newMetric("interface_tx_rate", prom.GaugeValue, intf.Statistics.Txrate, intfLabels...)
+					out <- e.newMetric("interface_poe_power", prom.GaugeValue, intf.Statistics.PoePower, intfLabels...)
+				}
 			}
-			out <- e.newMetric("ping_loss_ratio", prom.GaugeValue, ratio, deviceLabels...)
+
+			// WAN metrics
+			if wanIF != nil && wanIF.Statistics != nil {
+				out <- e.newMetric("wan_rx_bytes", prom.CounterValue, wanIF.Statistics.Rxbytes, deviceLabels...)
+				out <- e.newMetric("wan_tx_bytes", prom.CounterValue, wanIF.Statistics.Txbytes, deviceLabels...)
+				out <- e.newMetric("wan_rx_rate", prom.GaugeValue, wanIF.Statistics.Rxrate, deviceLabels...)
+				out <- e.newMetric("wan_tx_rate", prom.GaugeValue, wanIF.Statistics.Txrate, deviceLabels...)
+			}
+
+			// Ping metrics, if enabled
+			if e.extras.Ping {
+				ratio := 1.0
+				if ping := device.PingMetrics(); ping != nil {
+					if ping.PacketsSent > 0 {
+						ratio = float64(ping.PacketsLost) / float64(ping.PacketsSent)
+					}
+					out <- e.newMetric("ping_rtt_best_seconds", prom.GaugeValue, ping.Best.Seconds(), deviceLabels...)
+					out <- e.newMetric("ping_rtt_mean_seconds", prom.GaugeValue, ping.Mean.Seconds(), deviceLabels...)
+					out <- e.newMetric("ping_rtt_worst_seconds", prom.GaugeValue, ping.Worst.Seconds(), deviceLabels...)
+					out <- e.newMetric("ping_rtt_std_deviation_seconds", prom.GaugeValue, ping.StdDev.Seconds(), deviceLabels...)
+				}
+				out <- e.newMetric("ping_loss_ratio", prom.GaugeValue, ratio, deviceLabels...)
+			}
 		}
 	}
 
